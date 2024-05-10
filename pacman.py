@@ -448,7 +448,7 @@ def setArgs():
   # yellow pacman
   # pacmanType = loadAgent("MinimaxAgent", noKeyboard)
   
-  pacmanType = loadAgent("KeyboardAgent", False)
+  pacmanType = loadAgent("YourTeamAgent", noKeyboard)
   
   # สามารถแก้เป็น agent ของทีมตัวเองได้
   #pacmanType = loadAgent("YourTeamAgent", False)
