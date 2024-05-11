@@ -322,13 +322,21 @@ class YourTeamAgent(MultiAgentSearchAgent):
         """
         pacmanPosition = gameState.getPacmanPosition(self.index)
         legalMoves = gameState.getLegalActions(self.index)
+        walls = gameState.getWalls()
+        capsules = gameState.getCapsules()
 
+        nearby_capsules = [capsule for capsule in capsules if manhattanDistance(pacmanPosition, capsule) <= 1]
+
+        if nearby_capsules:
+            # If there are capsules nearby, prioritize eating them
+            return self.minimax_decision(gameState)
+          
         # Check if the next position after the proposed action is a valid move
         next_positions = [(pacmanPosition[0] + Actions.directionToVector(action)[0],
-                           pacmanPosition[1] + Actions.directionToVector(action)[1]) for action in legalMoves]
+                          pacmanPosition[1] + Actions.directionToVector(action)[1]) for action in legalMoves]
         next_positions = [(int(x), int(y)) for x, y in next_positions]
         valid_moves = [action for action, next_pos in zip(legalMoves, next_positions) if
-                       gameState.getWalls().data[next_pos[0]][next_pos[1]] == False]
+                      gameState.getWalls().data[next_pos[0]][next_pos[1]] == False]
 
         if valid_moves:
             # If there's at least one valid move, choose randomly among them
@@ -336,5 +344,6 @@ class YourTeamAgent(MultiAgentSearchAgent):
         else:
             # If all moves lead to walls, choose a random action among all legal moves
             return random.choice(legalMoves)
+          
 
 
