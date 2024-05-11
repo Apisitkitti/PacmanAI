@@ -10,6 +10,7 @@ from typing import Any, DefaultDict, List, Set, Tuple
 import time;
 from game import Agent
 from pacman import GameState
+from game import Actions
 
 
 class ReflexAgent(Agent):
@@ -252,64 +253,55 @@ class YourTeamAgent(MultiAgentSearchAgent):
         legalMoves = gameState.getLegalActions(self.index)
         pacmanPosition = gameState.getPacmanPosition(self.index)
         food = gameState.getFood()
-        capsules = gameState.getCapsules()
+        walls = gameState.getWalls()
 
-        # Check if there are nearby food or capsules
-        nearby_food = any([manhattanDistance(pacmanPosition, foodPos) <= 1 for foodPos in food.asList()])
-        nearby_capsule = any([manhattanDistance(pacmanPosition, capsulePos) <= 1 for capsulePos in capsules])
+        # Filter out actions that lead towards walls
+        valid_moves = []
+        for action in legalMoves:
+            next_position = self.get_next_position(pacmanPosition, action)
+            if not walls[next_position[0]][next_position[1]]:
+                valid_moves.append(action)
 
-        # If there are nearby food or capsules, use minimax search
-        if nearby_food or nearby_capsule:
-            self.last_direction = self.minimax_decision(gameState)
-            return self.last_direction
+        # Prioritize actions that lead to positions with food
+        food_moves = [action for action in valid_moves if self.get_next_position(pacmanPosition, action) in food.asList()]
+
+        if food_moves:
+            action = random.choice(food_moves)
+            self.last_direction = action
+            return action
+        elif valid_moves:
+            # If there are no food moves, choose a random valid move
+            action = random.choice(valid_moves)
+            self.last_direction = action
+            return action
         else:
-            # Introduce a delay before making a random decision
-            time.sleep(0.1)
+            # If all moves lead to walls, choose a random action among all legal moves
+            action = random.choice(legalMoves)
+            self.last_direction = action
+            return action
 
-            # Choose a random action after the delay
-            if random.random() < 0.1:
-                # Move randomly in any direction
-                return random.choice(legalMoves)
-            else:
-                # If there's no food behind Pacman, move randomly
-                return random.choice(legalMoves)
+    def get_next_position(self, current_position, action):
+        """
+        Get the next position after applying the given action.
 
-    def minimax_decision(self, gameState: GameState) -> str:
-        best_action = None
-        best_score = float("-inf")
-        for action in gameState.getLegalActions(self.index):
-            successor_state = gameState.generateSuccessor(self.index, action)
-            score = self.min_value(successor_state, depth=3, alpha=float("-inf"), beta=float("inf"))
-            if score > best_score:
-                best_score = score
-                best_action = action
-        return best_action
+        Parameters:
+        - current_position (tuple): Current position of the agent (x, y).
+        - action (str): Action to take ('North', 'South', 'East', 'West').
 
-    def max_value(self, gameState: GameState, depth: int, alpha: float, beta: float) -> float:
-        if gameState.isWin() or gameState.isLose() or depth == 0:
-            return self.evaluationFunction(gameState)
-        v = float("-inf")
-        for action in gameState.getLegalActions(self.index):
-            successor_state = gameState.generateSuccessor(self.index, action)
-            v = max(v, self.min_value(successor_state, depth - 1, alpha, beta))
-            if v >= beta:
-                return v
-            alpha = max(alpha, v)
-        return v
-
-    def min_value(self, gameState: GameState, depth: int, alpha: float, beta: float) -> float:
-        if gameState.isWin() or gameState.isLose() or depth == 0:
-            return self.evaluationFunction(gameState)
-        v = float("inf")
-        next_agent_index = (self.index + 1) % gameState.getNumAgents()
-        for action in gameState.getLegalActions(next_agent_index):
-            successor_state = gameState.generateSuccessor(next_agent_index, action)
-            v = min(v, self.max_value(successor_state, depth, alpha, beta))
-            if v <= alpha:
-                return v
-            beta = min(beta, v)
-        return v
-
+        Returns:
+        - tuple: Next position of the agent after taking the action.
+        """
+        x, y = current_position
+        if action == 'North':
+            return x, y + 1
+        elif action == 'South':
+            return x, y - 1
+        elif action == 'East':
+            return x + 1, y
+        elif action == 'West':
+            return x - 1, y
+        else:
+            return current_position
     def evaluationFunction(self, gameState: GameState) -> float:
         """
         Evaluate the current game state.
