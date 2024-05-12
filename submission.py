@@ -3,7 +3,7 @@
   ตอนส่งไฟล์ ให้แน่ใจว่า YourTeamAgent ไม่มี error และ run ได้
   ส่งแค่ submission.py ไฟล์เดียว
 '''
-from util import manhattanDistance
+from util import manhattanDistance,PriorityQueue
 from game import Directions
 import random, util,copy
 from typing import Any, DefaultDict, List, Set, Tuple
@@ -11,6 +11,7 @@ import time;
 from game import Agent
 from pacman import GameState
 from game import Actions
+import heapq
 
 
 class ReflexAgent(Agent):
@@ -246,96 +247,125 @@ class MinimaxAgent(MultiAgentSearchAgent):
 ######################################################################################
 class YourTeamAgent(MultiAgentSearchAgent):
     def __init__(self):
-        super().__init__()
-        self.last_direction = None
+      self.lastPositions = []
+      self.dc = None
 
-    def getAction(self, gameState: GameState, agentIndex=0) -> str:
-        legalMoves = gameState.getLegalActions(self.index)
-        pacmanPosition = gameState.getPacmanPosition(self.index)
-        food = gameState.getFood()
-        walls = gameState.getWalls()
 
-        # Filter out actions that lead towards walls
-        valid_moves = []
-        for action in legalMoves:
-            next_position = self.get_next_position(pacmanPosition, action)
-            if not walls[next_position[0]][next_position[1]]:
-                valid_moves.append(action)
+    def getAction(self, gameState: GameState,agentIndex=0) -> str:
+      """
+      getAction chooses among the best options according to the evaluation function.
 
-        # Prioritize actions that lead to positions with food
-        food_moves = [action for action in valid_moves if self.get_next_position(pacmanPosition, action) in food.asList()]
+      getAction takes a GameState and returns some Directions.X for some X in the set {North, South, West, East}
+      ------------------------------------------------------------------------------
+      Description of GameState and helper functions:
 
-        if food_moves:
-            action = random.choice(food_moves)
-            self.last_direction = action
-            return action
-        elif valid_moves:
-            # If there are no food moves, choose a random valid move
-            action = random.choice(valid_moves)
-            self.last_direction = action
-            return action
-        else:
-            # If all moves lead to walls, choose a random action among all legal moves
-            action = random.choice(legalMoves)
-            self.last_direction = action
-            return action
+      A GameState specifies the full game state, including the food, capsules,
+      agent configurations and score changes. In this function, the |gameState| argument
+      is an object of GameState class. Following are a few of the helper methods that you
+      can use to query a GameState object to gather information about the present state
+      of Pac-Man, the ghosts and the maze.
 
-    def get_next_position(self, current_position, action):
+      gameState.getLegalActions(agentIndex):
+          Returns the legal actions for the agent specified. Returns Pac-Man's legal moves by default.
+
+      gameState.generateSuccessor(agentIndex, action):
+          Returns the successor state after the specified agent takes the action.
+          Pac-Man is agent 0 and agent 1.
+
+      gameState.getPacmanState(agentIndex):
+          Returns an AgentState object for pacman (in game.py)
+          state.configuration.pos gives the current position
+          state.direction gives the travel vector
+
+      gameState.getNumAgents():
+          Returns the total number of agents in the game
+
+      gameState.getScore(agentIndex):
+          Returns the score of agentIndex (0 or 1) corresponding to the current state of the game
+
+      gameState.getScores():
+          Returns all the scores of the agents in the game as a list where first score corresponds to agent 0
+      
+      gameState.getFood():
+          Returns the food in the gameState
+
+      gameState.getPacmanPosition(agentIndex):
+          Returns the pacman (agentIndex 0 or 1) position in the gameState
+
+      gameState.getCapsules():
+          Returns the capsules in the gameState
+
+      The GameState class is defined in pacman.py and you might want to look into that for
+      other helper methods, though you don't need to.
+      """
+      # Collect legal moves and successor states
+      legalMoves = gameState.getLegalActions(agentIndex)
+      gameState.getScaredTimes(agentIndex)
+
+      # print(legalMoves)
+      # Choose one of the best actions
+      scores = [self.evaluationFunction(gameState, action,agentIndex) for action in legalMoves]
+      bestScore = max(scores)
+      bestIndices = [index for index in range(len(scores)) if scores[index] == bestScore]
+      chosenIndex = random.choice(bestIndices) # Pick randomly among the best
+
+
+      return legalMoves[chosenIndex]
+
+    def evaluationFunction(self, currentGameState: GameState, action: str, agentIndex=0) -> float:
         """
-        Get the next position after applying the given action.
+        The evaluation function takes in the current and proposed successor
+        GameStates (pacman.py) and returns a number, where higher numbers are better.
 
-        Parameters:
-        - current_position (tuple): Current position of the agent (x, y).
-        - action (str): Action to take ('North', 'South', 'East', 'West').
-
-        Returns:
-        - tuple: Next position of the agent after taking the action.
+        The code below extracts some useful information from the state, like the
+        remaining food (oldFood) and Pacman position after moving (newPos).
+        newScaredTimes holds the number of moves that each ghost will remain
+        scared because of Pacman having eaten a power pellet.
         """
-        x, y = current_position
-        if action == 'North':
-            return x, y + 1
-        elif action == 'South':
-            return x, y - 1
-        elif action == 'East':
-            return x + 1, y
-        elif action == 'West':
-            return x - 1, y
-        else:
-            return current_position
-    def evaluationFunction(self, gameState: GameState) -> float:
-        """
-        Evaluate the current game state.
+        # Get the successor game state after taking the action
+        successorGameState = currentGameState.generatePacmanSuccessor(action, agentIndex)
 
-        Parameters:
-        - gameState (GameState): The current game state.
+        # Get the new Pacman position after moving
+        newPos = successorGameState.getPacmanPosition(agentIndex)
 
-        Returns:
-        - float: The evaluation score for the state.
-        """
-        pacmanPosition = gameState.getPacmanPosition(self.index)
-        legalMoves = gameState.getLegalActions(self.index)
-        walls = gameState.getWalls()
-        capsules = gameState.getCapsules()
+        # Get the old food layout
+        oldFood = currentGameState.getFood()
 
-        nearby_capsules = [capsule for capsule in capsules if manhattanDistance(pacmanPosition, capsule) <= 1]
+        # Get the new food layout after taking the action
+        newFood = successorGameState.getFood()
 
-        if nearby_capsules:
-            # If there are capsules nearby, prioritize eating them
-            return self.minimax_decision(gameState)
-          
-        # Check if the next position after the proposed action is a valid move
-        next_positions = [(pacmanPosition[0] + Actions.directionToVector(action)[0],
-                          pacmanPosition[1] + Actions.directionToVector(action)[1]) for action in legalMoves]
-        next_positions = [(int(x), int(y)) for x, y in next_positions]
-        valid_moves = [action for action, next_pos in zip(legalMoves, next_positions) if
-                      gameState.getWalls().data[next_pos[0]][next_pos[1]] == False]
+        # Define the range to search for food
+        range_to_search = 5  # Initial range
 
-        if valid_moves:
-            # If there's at least one valid move, choose randomly among them
-            return random.choice(valid_moves)
-        else:
-            # If all moves lead to walls, choose a random action among all legal moves
-            return random.choice(legalMoves)
-          
+        # Expand the search area in multiple directions
+        nearby_food = []
+        for dx in range(-range_to_search, range_to_search + 1):
+            for dy in range(-range_to_search, range_to_search + 1):
+                next_position = (newPos[0] + dx, newPos[1] + dy)
+                if next_position[0] >= 0 and next_position[0] < newFood.width and next_position[1] >= 0 and next_position[1] < newFood.height:
+                    if newFood[next_position[0]][next_position[1]]:
+                        nearby_food.append(next_position)
+
+        # Calculate the closest distance to food within the search range
+        closestFoodDistance = float('inf')
+        if nearby_food:
+            closestFoodDistance = min(util.manhattanDistance(newPos, food) for food in nearby_food)
+
+        # Calculate the number of food pellets collected
+        numFoodCollected = len(oldFood.asList()) - len(newFood.asList())
+
+        # Calculate the score based on the number of food pellets collected and the distance to the closest food within range
+        remainingCapsules = len(successorGameState.getCapsules())
+        score = successorGameState.getScore(agentIndex) + numFoodCollected - remainingCapsules * 100 - closestFoodDistance
+
+        return score
+
+
+
+
+
+
+
+
 
 
