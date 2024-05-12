@@ -438,146 +438,91 @@ class YourTeamAgent2(MultiAgentSearchAgent):
 ######################################################################################
 class YourTeamAgent(MultiAgentSearchAgent):
     def __init__(self):
-      self.lastPositions = []
-      self.dc = None
+        self.lastPositions = []
+        self.dc = None
 
-
-    def getAction(self, gameState: GameState,agentIndex=0) -> str:
-      """
-      getAction chooses among the best options according to the evaluation function.
-
-      getAction takes a GameState and returns some Directions.X for some X in the set {North, South, West, East}
-      ------------------------------------------------------------------------------
-      Description of GameState and helper functions:
-
-      A GameState specifies the full game state, including the food, capsules,
-      agent configurations and score changes. In this function, the |gameState| argument
-      is an object of GameState class. Following are a few of the helper methods that you
-      can use to query a GameState object to gather information about the present state
-      of Pac-Man, the ghosts and the maze.
-
-      gameState.getLegalActions(agentIndex):
-          Returns the legal actions for the agent specified. Returns Pac-Man's legal moves by default.
-
-      gameState.generateSuccessor(agentIndex, action):
-          Returns the successor state after the specified agent takes the action.
-          Pac-Man is agent 0 and agent 1.
-
-      gameState.getPacmanState(agentIndex):
-          Returns an AgentState object for pacman (in game.py)
-          state.configuration.pos gives the current position
-          state.direction gives the travel vector
-
-      gameState.getNumAgents():
-          Returns the total number of agents in the game
-
-      gameState.getScore(agentIndex):
-          Returns the score of agentIndex (0 or 1) corresponding to the current state of the game
-
-      gameState.getScores():
-          Returns all the scores of the agents in the game as a list where first score corresponds to agent 0
-      
-      gameState.getFood():
-          Returns the food in the gameState
-
-      gameState.getPacmanPosition(agentIndex):
-          Returns the pacman (agentIndex 0 or 1) position in the gameState
-
-      gameState.getCapsules():
-          Returns the capsules in the gameState
-
-      The GameState class is defined in pacman.py and you might want to look into that for
-      other helper methods, though you don't need to.
-      """
-      # Collect legal moves and successor states
-      legalMoves = gameState.getLegalActions(agentIndex)
-      gameState.getScaredTimes(agentIndex)
-
-      # print(legalMoves)
-      # Choose one of the best actions
-      scores = [self.evaluationFunction(gameState, action,agentIndex) for action in legalMoves]
-      bestScore = max(scores)
-      bestIndices = [index for index in range(len(scores)) if scores[index] == bestScore]
-      chosenIndex = random.choice(bestIndices) # Pick randomly among the best
-
-
-      return legalMoves[chosenIndex]
-
-    def evaluationFunction(self, currentGameState: GameState, action: str, agentIndex=0, alpha=float('-inf'), beta=float('inf')) -> float:
+    def getAction(self, gameState: GameState, agentIndex=0) -> str:
         """
-        The evaluation function takes in the current and proposed successor
-        GameStates (pacman.py) and returns a number, where higher numbers are better.
-
-        The code below extracts some useful information from the state, like the
-        remaining food (oldFood) and Pacman position after moving (newPos).
-        newScaredTimes holds the number of moves that each ghost will remain
-        scared because of Pacman having eaten a power pellet.
+        Choose the best action according to the evaluation function.
         """
-        # Get the successor game state after taking the action
-        successorGameState = currentGameState.generatePacmanSuccessor(action, agentIndex)
+        legalMoves = gameState.getLegalActions(agentIndex)
+        gameState.getScaredTimes(agentIndex)
 
-        # Get the new Pacman position after moving
-        newPos = successorGameState.getPacmanPosition(agentIndex)
+        scores = [self.evaluationFunction(gameState, action, agentIndex) for action in legalMoves]
+        bestScore = max(scores)
+        bestIndices = [index for index in range(len(scores)) if scores[index] == bestScore]
+        chosenIndex = random.choice(bestIndices)  # Pick randomly among the best
 
-        # Get the old food layout
-        oldFood = currentGameState.getFood()
+        return legalMoves[chosenIndex]
 
-        # Get the new food layout after taking the action
-        newFood = successorGameState.getFood()
+    def evaluationFunction(self, currentGameState: GameState, action: str, agentIndex=0, alpha=float('-inf'),
+                           beta=float('inf')) -> float:
+        """
+        Evaluate the current game state based on various factors and return a score.
+        Higher scores indicate better states.
 
-        # Calculate the number of food pellets collected
-        numFoodCollected = len(oldFood.asList()) - len(newFood.asList())
+        Args:
+        - currentGameState: The current state of the game.
+        - action: The action to evaluate.
+        - agentIndex: The index of the agent (0 for player 1, 1 for player 2).
+        - alpha: The alpha value for alpha-beta pruning (default is negative infinity).
+        - beta: The beta value for alpha-beta pruning (default is positive infinity).
 
-        # Define the range to search for food
-        range_to_search = 100  # Initial range
+        Returns:
+        - The score of the evaluated state.
+        """
 
-        # Expand the search area in multiple directions
-        nearby_food = []
-        for dx in range(-range_to_search, range_to_search + 1):
-            for dy in range(-range_to_search, range_to_search + 1):
-                next_position = (newPos[0] + dx, newPos[1] + dy)
-                if next_position[0] >= 0 and next_position[0] < newFood.width and next_position[1] >= 0 and next_position[1] < newFood.height:
-                    if newFood[next_position[0]][next_position[1]]:
-                        nearby_food.append(next_position)
+        successorGameState = currentGameState.generateSuccessor(agentIndex, action)
 
-        # Calculate the closest distance to food within the search range
-        closestFoodDistance = float('inf')
-        if nearby_food:
-            closestFoodDistance = min(util.manhattanDistance(newPos, food) for food in nearby_food)
+        new_agent_pos = successorGameState.getPacmanPosition(agentIndex)
 
-        # Calculate the distance to the nearest food pellet
-        if newFood.asList():
-            closest_food_distance = min(util.manhattanDistance(newPos, food) for food in newFood.asList())
-        else:
-            closest_food_distance = float('inf')
+        old_food = currentGameState.getFood()
+        new_food = successorGameState.getFood()
 
-        # Prioritize eating final food if only a few pellets remain
-        if len(newFood.asList()) <= 1:
-            final_food_bonus = 20
-        else:
-            final_food_bonus = 10
+        num_food_collected = len(old_food.asList()) - len(new_food.asList())
 
-        # Calculate the score based on the number of food pellets collected, distance to food, and bonus for final food
-        remainingCapsules = len(successorGameState.getCapsules())
-        score = successorGameState.getScore(agentIndex) + numFoodCollected - remainingCapsules * 100 - closestFoodDistance + final_food_bonus - len(newFood.asList()) * 50
+        range_to_search = 150  # Initial range
 
-        # If the agent is in ghost state, prioritize going towards capsules or avoiding other pacman
-        if currentGameState.getGhostState(agentIndex).scaredTimer > 0:
-            # Get the position of capsules
-            capsules = currentGameState.getCapsules()
-            if capsules:
-                # Calculate the distance to the nearest capsule
-                closest_capsule_distance = min(util.manhattanDistance(newPos, capsule) for capsule in capsules)
-                score -= closest_capsule_distance * 10  # Prioritize going towards capsules
+        nearby_food = [(x, y) for x in
+                       range(new_agent_pos[0] - range_to_search, new_agent_pos[0] + range_to_search + 1)
+                       for y in
+                       range(new_agent_pos[1] - range_to_search, new_agent_pos[1] + range_to_search + 1)
+                       if 0 <= x < new_food.width and 0 <= y < new_food.height and new_food[x][y]]
 
-            # Check if there are other pacman nearby and avoid them
-            for i in range(currentGameState.getNumAgents()):
-                if i != agentIndex:
-                    other_pacman_pos = currentGameState.getPacmanPosition(i)
-                    if other_pacman_pos:
-                        pacman_distance = util.manhattanDistance(newPos, other_pacman_pos)
-                        if pacman_distance < 2:  # If other pacman is nearby, reduce the score
-                            score -= 100
+        closest_food_distance = min(
+            util.manhattanDistance(new_agent_pos, food) for food in nearby_food) if nearby_food else float('inf')
+
+        closest_food_distance = min(util.manhattanDistance(new_agent_pos, food) for food in new_food.asList()) if new_food.asList() else float(
+            'inf')
+
+        final_food_bonus = 20 if len(new_food.asList()) <= 1 else 10
+
+        remaining_capsules = len(successorGameState.getCapsules())
+        score = (
+                successorGameState.getScore(agentIndex) +
+                num_food_collected -
+                remaining_capsules * 100 -
+                closest_food_distance +
+                final_food_bonus -
+                len(new_food.asList()) * 50
+        )
+
+        if agentIndex > 0 and agentIndex - 1 < currentGameState.getNumAgents():  # Player 2 (ghosts)
+            if not successorGameState.getGhostStates()[agentIndex - 1].scaredTimer == 0:
+                capsules = currentGameState.getCapsules()
+                if capsules:
+                    # Calculate the distance to the nearest capsule
+                    closest_capsule_distance = min(util.manhattanDistance(new_agent_pos, capsule) for capsule in capsules)
+                    score -= closest_capsule_distance * 10  # Prioritize going towards capsules
+
+                # Check if there are other pacman nearby and avoid them
+                for i in range(currentGameState.getNumAgents()):
+                    if i != agentIndex:
+                        other_pacman_pos = currentGameState.getPacmanPosition(i)
+                        if other_pacman_pos:
+                            pacman_distance = util.manhattanDistance(new_agent_pos, other_pacman_pos)
+                            if pacman_distance < 2:  # If other pacman is nearby, reduce the score
+                                score -= 100
 
         # Alpha-beta pruning
         if agentIndex == 0:
@@ -592,6 +537,9 @@ class YourTeamAgent(MultiAgentSearchAgent):
             beta = min(beta, score)
 
         return score
+
+
+
 
 
 
