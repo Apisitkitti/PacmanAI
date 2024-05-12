@@ -481,18 +481,28 @@ class YourTeamAgent(MultiAgentSearchAgent):
 
         num_food_collected = len(old_food.asList()) - len(new_food.asList())
 
-        range_to_search = 150  # Initial range
+        range_to_search = max(currentGameState.data.layout.width, currentGameState.data.layout.height)  # Search range covers the entire map
 
+        # Calculate the number of nearby food pellets
         nearby_food = [(x, y) for x in
                        range(new_agent_pos[0] - range_to_search, new_agent_pos[0] + range_to_search + 1)
                        for y in
                        range(new_agent_pos[1] - range_to_search, new_agent_pos[1] + range_to_search + 1)
                        if 0 <= x < new_food.width and 0 <= y < new_food.height and new_food[x][y]]
+        
+        # Calculate the number of nearby capsules
+        nearby_capsules = [(x, y) for x in
+                           range(new_agent_pos[0] - range_to_search, new_agent_pos[0] + range_to_search + 1)
+                           for y in
+                           range(new_agent_pos[1] - range_to_search, new_agent_pos[1] + range_to_search + 1)
+                           if 0 <= x < new_food.width and 0 <= y < new_food.height and (x, y) in currentGameState.getCapsules()]
 
-        closest_food_distance = min(
-            util.manhattanDistance(new_agent_pos, food) for food in nearby_food) if nearby_food else float('inf')
+        # Calculate the distance to the nearest food pellet
+        closest_food_distance = min(util.manhattanDistance(new_agent_pos, food) for food in nearby_food) if nearby_food else float(
+            'inf')
 
-        closest_food_distance = min(util.manhattanDistance(new_agent_pos, food) for food in new_food.asList()) if new_food.asList() else float(
+        # Calculate the distance to the nearest capsule
+        closest_capsule_distance = min(util.manhattanDistance(new_agent_pos, capsule) for capsule in nearby_capsules) if nearby_capsules else float(
             'inf')
 
         final_food_bonus = 20 if len(new_food.asList()) <= 1 else 10
@@ -507,22 +517,8 @@ class YourTeamAgent(MultiAgentSearchAgent):
                 len(new_food.asList()) * 50
         )
 
-        if agentIndex > 0 and agentIndex - 1 < currentGameState.getNumAgents():  # Player 2 (ghosts)
-            if not successorGameState.getGhostStates()[agentIndex - 1].scaredTimer == 0:
-                capsules = currentGameState.getCapsules()
-                if capsules:
-                    # Calculate the distance to the nearest capsule
-                    closest_capsule_distance = min(util.manhattanDistance(new_agent_pos, capsule) for capsule in capsules)
-                    score -= closest_capsule_distance * 10  # Prioritize going towards capsules
-
-                # Check if there are other pacman nearby and avoid them
-                for i in range(currentGameState.getNumAgents()):
-                    if i != agentIndex:
-                        other_pacman_pos = currentGameState.getPacmanPosition(i)
-                        if other_pacman_pos:
-                            pacman_distance = util.manhattanDistance(new_agent_pos, other_pacman_pos)
-                            if pacman_distance < 2:  # If other pacman is nearby, reduce the score
-                                score -= 100
+        # Prioritize going towards capsules
+        score -= closest_capsule_distance * 10 if closest_capsule_distance != float('inf') else 0
 
         # Alpha-beta pruning
         if agentIndex == 0:
@@ -537,6 +533,8 @@ class YourTeamAgent(MultiAgentSearchAgent):
             beta = min(beta, score)
 
         return score
+
+
 
 
 
