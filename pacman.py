@@ -433,8 +433,8 @@ def checkWinner(game, rule):
 def setArgs():
   args = dict()
   # Choose a layout
-  #layout1 = "open310"
-  layout1 = "mediumClassic"
+  layout1 = "open310"
+  #layout1 = "mediumClassic"
   #layout1 = "testClassic"
   args['layout'] = layout.getLayout(layout1 )
   zoom = 1.0

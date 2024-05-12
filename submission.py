@@ -503,7 +503,7 @@ class YourTeamAgent(MultiAgentSearchAgent):
 
       return legalMoves[chosenIndex]
 
-    def evaluationFunction(self, currentGameState: GameState, action: str, agentIndex=0) -> float:
+    def evaluationFunction(self, currentGameState: GameState, action: str, agentIndex=0, alpha=float('-inf'), beta=float('inf')) -> float:
         """
         The evaluation function takes in the current and proposed successor
         GameStates (pacman.py) and returns a number, where higher numbers are better.
@@ -553,16 +553,46 @@ class YourTeamAgent(MultiAgentSearchAgent):
 
         # Prioritize eating final food if only a few pellets remain
         if len(newFood.asList()) <= 1:
-            final_food_bonus = 2000
+            final_food_bonus = 20
         else:
-            final_food_bonus = 1000
-        
+            final_food_bonus = 10
 
         # Calculate the score based on the number of food pellets collected, distance to food, and bonus for final food
         remainingCapsules = len(successorGameState.getCapsules())
-        score = successorGameState.getScore(agentIndex) + numFoodCollected - remainingCapsules * 100 - closestFoodDistance - final_food_bonus
+        score = successorGameState.getScore(agentIndex) + numFoodCollected - remainingCapsules * 100 - closestFoodDistance + final_food_bonus - len(newFood.asList()) * 50
+
+        # If the agent is in ghost state, prioritize going towards capsules or avoiding other pacman
+        if currentGameState.getGhostState(agentIndex).scaredTimer > 0:
+            # Get the position of capsules
+            capsules = currentGameState.getCapsules()
+            if capsules:
+                # Calculate the distance to the nearest capsule
+                closest_capsule_distance = min(util.manhattanDistance(newPos, capsule) for capsule in capsules)
+                score -= closest_capsule_distance * 10  # Prioritize going towards capsules
+
+            # Check if there are other pacman nearby and avoid them
+            for i in range(currentGameState.getNumAgents()):
+                if i != agentIndex:
+                    other_pacman_pos = currentGameState.getPacmanPosition(i)
+                    if other_pacman_pos:
+                        pacman_distance = util.manhattanDistance(newPos, other_pacman_pos)
+                        if pacman_distance < 2:  # If other pacman is nearby, reduce the score
+                            score -= 100
+
+        # Alpha-beta pruning
+        if agentIndex == 0:
+            # Maximizer
+            if score >= beta:
+                return score
+            alpha = max(alpha, score)
+        else:
+            # Minimizer
+            if score <= alpha:
+                return score
+            beta = min(beta, score)
 
         return score
+
 
 
 
