@@ -434,12 +434,12 @@ def setArgs():
   args = dict()
   # Choose a layout
   layout1 = "open310"
-  # layout1 = "mediumClassic"
-  # layout1 = "testClassic"
+  #layout1 = "mediumClassic"
+  #layout1 = "testClassic"
   args['layout'] = layout.getLayout(layout1 )
   zoom = 1.0
   # ความเร็วในการเคลื่อนที่ของ pacman สามารถกำหนดได้ โดยค่ามากขึ้น จะช้าลง
-  frameTime = 0.1
+  frameTime = 0.02
   args['display'] = graphicsDisplay.PacmanGraphics(zoom, frameTime = frameTime)
 
   # Choose a Pacman agent 1
@@ -448,7 +448,7 @@ def setArgs():
   # yellow pacman
   # pacmanType = loadAgent("MinimaxAgent", noKeyboard)
   
-  pacmanType = loadAgent("YourTeamAgent", noKeyboard)
+  pacmanType = loadAgent("YourTeamAgent2", noKeyboard)
   
   # สามารถแก้เป็น agent ของทีมตัวเองได้
   #pacmanType = loadAgent("YourTeamAgent", False)
@@ -460,7 +460,7 @@ def setArgs():
   # Choose a Pacman agent 2
   # orange pacman
   noKeyboard = False
-  pacmanType = loadAgent("ReflexAgent", noKeyboard)
+  pacmanType = loadAgent("YourTeamAgent", noKeyboard)
 
   # สามารถแก้เป็น agent ของทีมตัวเองได้
   #pacmanType = loadAgent("YourTeamAgent", False)
@@ -500,4 +500,3 @@ if __name__ == '__main__':
   
   args = setArgs() # Get game components based on input
   runGames(**args )
-

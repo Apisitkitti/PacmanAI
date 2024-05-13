@@ -3,14 +3,18 @@
   ตอนส่งไฟล์ ให้แน่ใจว่า YourTeamAgent ไม่มี error และ run ได้
   ส่งแค่ submission.py ไฟล์เดียว
 '''
-from util import manhattanDistance
+from util import manhattanDistance,PriorityQueue
 from game import Directions
 import random, util,copy
 from typing import Any, DefaultDict, List, Set, Tuple
 import time;
 from game import Agent
 from pacman import GameState
-
+from game import Actions
+import heapq
+from typing import List, Tuple, Deque
+from collections import deque
+from heapq import heappush, heappop
 
 class ReflexAgent(Agent):
   """
@@ -241,109 +245,279 @@ class MinimaxAgent(MultiAgentSearchAgent):
     oldFood = currentGameState.getFood()
 
     return successorGameState.getScore()
+class YourTeamAgent2(MultiAgentSearchAgent):
+    """
+    Your team agent
+    This class makes Pac-Man find all closest capsules and food in the game state.
+    If there is no food or capsules left, it makes Pac-Man randomly walk.
+    Pac-Man also avoids walls and uses BFS for pathfinding.
+    Additionally, if Pac-Man is scared and within a close distance of the other AI, it avoids the other AI.
+    """
 
-######################################################################################
-class YourTeamAgent(MultiAgentSearchAgent):
-    def __init__(self):
-        super().__init__()
-        self.last_direction = None
-
-    def getAction(self, gameState: GameState, agentIndex=0) -> str:
-        legalMoves = gameState.getLegalActions(self.index)
-        pacmanPosition = gameState.getPacmanPosition(self.index)
-        food = gameState.getFood()
-        capsules = gameState.getCapsules()
-
-        # Check if there are nearby food or capsules
-        nearby_food = any([manhattanDistance(pacmanPosition, foodPos) <= 1 for foodPos in food.asList()])
-        nearby_capsule = any([manhattanDistance(pacmanPosition, capsulePos) <= 1 for capsulePos in capsules])
-
-        # If there are nearby food or capsules, use minimax search
-        if nearby_food or nearby_capsule:
-            self.last_direction = self.minimax_decision(gameState)
-            return self.last_direction
-        else:
-            # Introduce a delay before making a random decision
-            time.sleep(0.1)
-
-            # Choose a random action after the delay
-            if random.random() < 0.1:
-                # Move randomly in any direction
-                return random.choice(legalMoves)
-            else:
-                # If there's no food behind Pacman, move randomly
-                return random.choice(legalMoves)
-
-    def minimax_decision(self, gameState: GameState) -> str:
-        best_action = None
-        best_score = float("-inf")
-        for action in gameState.getLegalActions(self.index):
-            successor_state = gameState.generateSuccessor(self.index, action)
-            score = self.min_value(successor_state, depth=3, alpha=float("-inf"), beta=float("inf"))
-            if score > best_score:
-                best_score = score
-                best_action = action
-        return best_action
-
-    def max_value(self, gameState: GameState, depth: int, alpha: float, beta: float) -> float:
-        if gameState.isWin() or gameState.isLose() or depth == 0:
-            return self.evaluationFunction(gameState)
-        v = float("-inf")
-        for action in gameState.getLegalActions(self.index):
-            successor_state = gameState.generateSuccessor(self.index, action)
-            v = max(v, self.min_value(successor_state, depth - 1, alpha, beta))
-            if v >= beta:
-                return v
-            alpha = max(alpha, v)
-        return v
-
-    def min_value(self, gameState: GameState, depth: int, alpha: float, beta: float) -> float:
-        if gameState.isWin() or gameState.isLose() or depth == 0:
-            return self.evaluationFunction(gameState)
-        v = float("inf")
-        next_agent_index = (self.index + 1) % gameState.getNumAgents()
-        for action in gameState.getLegalActions(next_agent_index):
-            successor_state = gameState.generateSuccessor(next_agent_index, action)
-            v = min(v, self.max_value(successor_state, depth, alpha, beta))
-            if v <= alpha:
-                return v
-            beta = min(beta, v)
-        return v
-
-    def evaluationFunction(self, gameState: GameState) -> float:
+    def getAction(self, gameState: GameState, agentIndex: int = 0) -> str:
         """
-        Evaluate the current game state.
+        Returns the best action for Pac-Man to take in the given game state to minimize the total distance to the closest capsule or food.
+        If there is no food or capsules left, returns a random legal action.
+        If Pac-Man is scared and within a close distance of the other AI, returns an action to avoid the other AI.
 
-        Parameters:
-        - gameState (GameState): The current game state.
+        Args:
+            gameState: The current game state.
+            agentIndex: The index of the agent (0 for Pac-Man, 1 for the second agent).
 
         Returns:
-        - float: The evaluation score for the state.
+            The optimal action to take in the given game state, prioritizing avoiding the other AI when Pac-Man is scared and close to the enemy AI.
         """
-        pacmanPosition = gameState.getPacmanPosition(self.index)
-        legalMoves = gameState.getLegalActions(self.index)
-        walls = gameState.getWalls()
+        # Get the legal actions for Pac-Man
+        legalActions = gameState.getLegalActions(agentIndex)
+
+        # Get Pac-Man's current position
+        pacmanPosition = gameState.getPacmanPosition(agentIndex)
+
+        # Get the list of remaining capsules and food in the game state
         capsules = gameState.getCapsules()
+        foodGrid = gameState.getFood()
+        foodList = foodGrid.asList()
 
-        nearby_capsules = [capsule for capsule in capsules if manhattanDistance(pacmanPosition, capsule) <= 1]
+        # Get the state of the other agent (enemy AI)
+        enemyAgentIndex = (agentIndex + 1) % gameState.getNumAgents()
+        enemyAI = gameState.getPacmanState(enemyAgentIndex)
+        enemyPosition = gameState.getPacmanPosition(enemyAgentIndex)
+        enemyScaredTimes = enemyAI.scaredTimer
 
-        if nearby_capsules:
-            # If there are capsules nearby, prioritize eating them
-            return self.minimax_decision(gameState)
-          
-        # Check if the next position after the proposed action is a valid move
-        next_positions = [(pacmanPosition[0] + Actions.directionToVector(action)[0],
-                          pacmanPosition[1] + Actions.directionToVector(action)[1]) for action in legalMoves]
-        next_positions = [(int(x), int(y)) for x, y in next_positions]
-        valid_moves = [action for action, next_pos in zip(legalMoves, next_positions) if
-                      gameState.getWalls().data[next_pos[0]][next_pos[1]] == False]
+        # Get the scared times for our AI
+        scaredTimes = gameState.getScaredTimes(agentIndex)
 
-        if valid_moves:
-            # If there's at least one valid move, choose randomly among them
-            return random.choice(valid_moves)
+        # Calculate the distance from Pac-Man to the other AI
+        distanceToEnemyAI = manhattanDistance(pacmanPosition, enemyPosition)
+
+        # Check if our AI is scared and the distance to the other AI is less than 3
+        if scaredTimes > 0 and distanceToEnemyAI < 3:
+            # If our AI is scared and close to the enemy AI, avoid the other AI
+            return self.findBestActionToAvoidOtherAI(gameState, agentIndex, pacmanPosition, enemyPosition)
+
+        # Check if there is no food and no capsules left
+        if not capsules and not foodList:
+            # If there is no food and no capsules left, return a random legal action
+            return random.choice(legalActions)
+
+        # Determine the closest target (capsule or food)
+        if capsules:
+            closestTarget = min(capsules, key=lambda capsule: manhattanDistance(pacmanPosition, capsule))
         else:
-            # If all moves lead to walls, choose a random action among all legal moves
-            return random.choice(legalMoves)
-          
+            closestTarget = min(foodList, key=lambda food: manhattanDistance(pacmanPosition, food))
+
+        # Find the best action to navigate towards the closest target
+        bestAction = self.findBestActionToTarget(gameState, agentIndex, pacmanPosition, closestTarget)
+        return bestAction
+
+    def findBestActionToAvoidOtherAI(self, gameState: GameState, agentIndex: int, pacmanPosition: Tuple[int, int], enemyPosition: Tuple[int, int]) -> str:
+        """
+        Finds the best action to maximize the distance from the other AI when Pac-Man is scared and close to the enemy AI.
+
+        Args:
+            gameState: The current game state.
+            agentIndex: The index of the agent (0 for Pac-Man, 1 for the second agent).
+            pacmanPosition: Pac-Man's current position.
+            enemyPosition: The other AI's current position.
+
+        Returns:
+            The best action to maximize the distance from the other AI.
+        """
+        legalActions = gameState.getLegalActions(agentIndex)
+        maxDistance = -float('inf')
+        bestAction = None
+
+        # Iterate over the legal actions and calculate the distance from the other AI
+        for action in legalActions:
+            # Generate the successor state after taking the action
+            successorGameState = gameState.generateSuccessor(agentIndex, action)
+            
+            # Get Pac-Man's new position after taking the action
+            newPosition = successorGameState.getPacmanPosition(agentIndex)
+            
+            # Calculate the Manhattan distance from the other AI
+            distanceFromAI = manhattanDistance(newPosition, enemyPosition)
+            
+            # Update the best action and maximum distance if the current distance is greater
+            if distanceFromAI > maxDistance:
+                maxDistance = distanceFromAI
+                bestAction = action
+        
+        # Return the best action that maximizes the distance from the other AI
+        return bestAction
+
+    def findBestActionToTarget(self, gameState: GameState, agentIndex: int, startPosition: Tuple[int, int], targetPosition: Tuple[int, int]) -> str:
+        """
+        Uses BFS to find the best action to navigate from startPosition to targetPosition, avoiding walls.
+
+        Args:
+            gameState: The current game state.
+            agentIndex: The index of the agent (0 for Pac-Man, 1 for the second agent).
+            startPosition: The starting position of the agent.
+            targetPosition: The target position to navigate towards.
+
+        Returns:
+            The best action to take to navigate from startPosition to targetPosition.
+        """
+        # Get the walls of the maze
+        walls = gameState.getWalls()
+
+        # Perform BFS to find the shortest path from startPosition to targetPosition
+        queue: Deque[Tuple[Tuple[int, int], List[str]]] = deque([(startPosition, [])])
+        visited = set()
+        visited.add(startPosition)
+
+        # Define the possible directions and their respective actions
+        directions = [
+            ((0, 1), Directions.NORTH),  # North
+            ((0, -1), Directions.SOUTH), # South
+            ((-1, 0), Directions.WEST),  # West
+            ((1, 0), Directions.EAST)   # East
+        ]
+
+        while queue:
+            currentPosition, actions = queue.popleft()
+            
+            # If the current position is the target position, return the first action in the path
+            if currentPosition == targetPosition:
+                return actions[0] if actions else Directions.STOP
+            
+            # Explore the possible directions
+            for (dx, dy), direction in directions:
+                newPosition = (currentPosition[0] + dx, currentPosition[1] + dy)
+                
+                # If the new position is within bounds, not a wall, and not visited
+                if (0 <= newPosition[0] < gameState.data.layout.width and
+                    0 <= newPosition[1] < gameState.data.layout.height and
+                    not walls[newPosition[0]][newPosition[1]] and
+                    newPosition not in visited):
+                    # Mark the new position as visited and enqueue it
+                    visited.add(newPosition)
+                    queue.append((newPosition, actions + [direction]))
+
+        # If there is no path found, return a random legal action as a fallback
+        return random.choice(gameState.getLegalActions(agentIndex))
+
+    def evaluationFunction(self, currentGameState: GameState, agentIndex: int) -> float:
+        """
+        Evaluation function for the current game state.
+
+        This function evaluates the game state by considering the distance to the closest capsule or food.
+        Lower values indicate a better state (closer to the target).
+
+        Args:
+            currentGameState: The current game state.
+            agentIndex: The index of the agent (0 for Pac-Man).
+
+        Returns:
+            A float value representing the utility of the game state.
+        """
+        # Get Pac-Man's current position
+        pacmanPosition = currentGameState.getPacmanPosition(agentIndex)
+
+        # Get the list of remaining capsules and food in the game state
+        capsules = currentGameState.getCapsules()
+        foodGrid = currentGameState.getFood()
+        foodList = foodGrid.asList()
+
+        # Check if there is no food and no capsules left
+        if not capsules and not foodList:
+            # If there is no food and no capsules left, return a high value since there are no targets
+            return float('inf')
+
+        # Determine the closest target (capsule or food)
+        if capsules:
+            closestTarget = min(capsules, key=lambda capsule: manhattanDistance(pacmanPosition, capsule))
+        else:
+            closestTarget = min(foodList, key=lambda food: manhattanDistance(pacmanPosition, food))
+
+        # Calculate the distance to the closest target (capsule or food)
+        closestTargetDistance = manhattanDistance(pacmanPosition, closestTarget)
+
+        # Return the negative of the closest target distance for minimization
+        return -closestTargetDistance
+######################################################################################
+class YourTeamAgent(Agent):
+    def __init__(self):
+        self.lastPositions = []
+        self.dc = None
+
+    def getAction(self, gameState: GameState, agentIndex=0) -> str:
+        legalMoves = gameState.getLegalActions(agentIndex)
+        if len(gameState.getFood().asList()) == 1:
+            last_food_position = gameState.getFood().asList()[0]
+            # Force the move towards the last piece of food
+            best_move = min(legalMoves, key=lambda x: util.manhattanDistance(gameState.generateSuccessor(agentIndex, x).getPacmanPosition(agentIndex), last_food_position))
+            print(f"Last food at {last_food_position}, forced move: {best_move}")
+            return best_move
+        else:
+            scores = [self.evaluationFunction(gameState, action, agentIndex) for action in legalMoves]
+            bestScore = max(scores)
+            bestIndices = [index for index in range(len(scores)) if scores[index] == bestScore]
+            chosenIndex = random.choice(bestIndices)  # Pick randomly among the best
+            return legalMoves[chosenIndex]
+
+    def evaluationFunction(self, currentGameState: GameState, action: str, agentIndex=0) -> float:
+        successorGameState = currentGameState.generateSuccessor(agentIndex, action)
+        new_agent_pos = successorGameState.getPacmanPosition(agentIndex)
+        old_food = currentGameState.getFood()
+        new_food = successorGameState.getFood()
+        num_food_collected = len(old_food.asList()) - len(new_food.asList())
+        final_food_bonus = 1000 if len(new_food.asList()) == 1 else 10
+        remaining_capsules = len(successorGameState.getCapsules())
+
+        # Calculate the distance to the nearest food pellet
+        food_positions = new_food.asList()
+        closest_food_distance = min(util.manhattanDistance(new_agent_pos, food) for food in food_positions) if food_positions else float('inf')
+
+        score = (successorGameState.getScore(agentIndex) +
+                 num_food_collected * 10 -
+                 closest_food_distance +
+                 final_food_bonus -
+                 remaining_capsules * 100 -
+                 len(new_food.asList()) * 50)
+
+        # Add debug print to observe scoring decision
+        if len(new_food.asList()) <= 1:
+            print(f"Action: {action}, Score: {score}, Remaining Food: {len(new_food.asList())}, Closest Food Distance: {closest_food_distance}")
+
+        return score
+
+    def isAccessible(self, start, end, gameState):
+        """Check if the end position is accessible from the start position using A* algorithm."""
+        frontier = [(0, start, [])]  # (priority, current position, path)
+        explored = set()
+        while frontier:
+            _, current, path = heappop(frontier)
+            if current == end:
+                return True
+            if current in explored:
+                continue
+            explored.add(current)
+            for dx in [-1, 0, 1]:
+                for dy in [-1, 0, 1]:
+                    next_pos = (current[0] + dx, current[1] + dy)
+                    if not gameState.hasWall(next_pos[0], next_pos[1]) and next_pos not in explored:
+                        heappush(frontier, (len(path) + 1, next_pos, path + [next_pos]))
+        return False
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
