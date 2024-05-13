@@ -455,6 +455,53 @@ class YourTeamAgent(MultiAgentSearchAgent):
 
         return legalMoves[chosenIndex]
 
+    def isAccessible(self, start, end, gameState):
+        """
+        Check if the end position is accessible from the start position in the game state.
+
+        Args:
+        - start: The starting position.
+        - end: The ending position to check accessibility to.
+        - gameState: The current state of the game.
+
+        Returns:
+        - True if the end position is accessible from the start position, False otherwise.
+        """
+
+        # A* algorithm for pathfinding
+        frontier = PriorityQueue()
+        frontier.push((start, []), 0)
+        explored = set()
+
+        while not frontier.isEmpty():
+            current, path = frontier.pop()
+
+            if current == end:
+                # End position is reachable
+                return True
+
+            if current in explored:
+                continue
+
+            walls = gameState.getWalls()
+            width, height = walls.width, walls.height
+
+            for dx in range(-2, 3):
+                for dy in range(-2, 3):
+                    next_pos = (current[0] + dx, current[1] + dy)
+                    # Check if next_pos is within the boundaries of the maze and not a wall
+                    if 0 <= next_pos[0] < width and 0 <= next_pos[1] < height and not walls[next_pos[0]][next_pos[1]]:
+                        if gameState.hasWall(next_pos[0], next_pos[1]):
+                            continue
+
+                        if next_pos not in explored:
+                            frontier.push((next_pos, path + [next_pos]), len(path) + 1)
+
+            explored.add(current)
+
+        # End position is not reachable
+        return False
+
     def evaluationFunction(self, currentGameState: GameState, action: str, agentIndex=0, alpha=float('-inf'),
                            beta=float('inf')) -> float:
         """
@@ -481,7 +528,7 @@ class YourTeamAgent(MultiAgentSearchAgent):
 
         num_food_collected = len(old_food.asList()) - len(new_food.asList())
 
-        range_to_search = max(currentGameState.data.layout.width, currentGameState.data.layout.height)  # Search range covers the entire map
+        range_to_search = 55 # Search range covers the entire map
 
         # Calculate the number of nearby food pellets
         nearby_food = [(x, y) for x in
@@ -489,7 +536,7 @@ class YourTeamAgent(MultiAgentSearchAgent):
                        for y in
                        range(new_agent_pos[1] - range_to_search, new_agent_pos[1] + range_to_search + 1)
                        if 0 <= x < new_food.width and 0 <= y < new_food.height and new_food[x][y]]
-        
+
         # Calculate the number of nearby capsules
         nearby_capsules = [(x, y) for x in
                            range(new_agent_pos[0] - range_to_search, new_agent_pos[0] + range_to_search + 1)
@@ -520,6 +567,10 @@ class YourTeamAgent(MultiAgentSearchAgent):
         # Prioritize going towards capsules
         score -= closest_capsule_distance * 10 if closest_capsule_distance != float('inf') else 0
 
+        # Penalize actions that lead to positions with walls
+        if currentGameState.hasWall(new_agent_pos[0], new_agent_pos[1]):
+            score -= 1000  # Penalize heavily for hitting a wall
+
         # Alpha-beta pruning
         if agentIndex == 0:
             # Maximizer
@@ -533,6 +584,10 @@ class YourTeamAgent(MultiAgentSearchAgent):
             beta = min(beta, score)
 
         return score
+
+
+
+
 
 
 
