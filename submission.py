@@ -14,6 +14,7 @@ from game import Actions
 import heapq
 from typing import List, Tuple, Deque
 from collections import deque
+from heapq import heappush, heappop
 
 class ReflexAgent(Agent):
   """
@@ -436,155 +437,69 @@ class YourTeamAgent2(MultiAgentSearchAgent):
         # Return the negative of the closest target distance for minimization
         return -closestTargetDistance
 ######################################################################################
-class YourTeamAgent(MultiAgentSearchAgent):
+class YourTeamAgent(Agent):
     def __init__(self):
         self.lastPositions = []
         self.dc = None
 
     def getAction(self, gameState: GameState, agentIndex=0) -> str:
-        """
-        Choose the best action according to the evaluation function.
-        """
         legalMoves = gameState.getLegalActions(agentIndex)
-        gameState.getScaredTimes(agentIndex)
+        if len(gameState.getFood().asList()) == 1:
+            last_food_position = gameState.getFood().asList()[0]
+            # Force the move towards the last piece of food
+            best_move = min(legalMoves, key=lambda x: util.manhattanDistance(gameState.generateSuccessor(agentIndex, x).getPacmanPosition(agentIndex), last_food_position))
+            print(f"Last food at {last_food_position}, forced move: {best_move}")
+            return best_move
+        else:
+            scores = [self.evaluationFunction(gameState, action, agentIndex) for action in legalMoves]
+            bestScore = max(scores)
+            bestIndices = [index for index in range(len(scores)) if scores[index] == bestScore]
+            chosenIndex = random.choice(bestIndices)  # Pick randomly among the best
+            return legalMoves[chosenIndex]
 
-        scores = [self.evaluationFunction(gameState, action, agentIndex) for action in legalMoves]
-        bestScore = max(scores)
-        bestIndices = [index for index in range(len(scores)) if scores[index] == bestScore]
-        chosenIndex = random.choice(bestIndices)  # Pick randomly among the best
-
-        return legalMoves[chosenIndex]
-
-    def isAccessible(self, start, end, gameState):
-        """
-        Check if the end position is accessible from the start position in the game state.
-
-        Args:
-        - start: The starting position.
-        - end: The ending position to check accessibility to.
-        - gameState: The current state of the game.
-
-        Returns:
-        - True if the end position is accessible from the start position, False otherwise.
-        """
-
-        # A* algorithm for pathfinding
-        frontier = PriorityQueue()
-        frontier.push((start, []), 0)
-        explored = set()
-
-        while not frontier.isEmpty():
-            current, path = frontier.pop()
-
-            if current == end:
-                # End position is reachable
-                return True
-
-            if current in explored:
-                continue
-
-            walls = gameState.getWalls()
-            width, height = walls.width, walls.height
-
-            for dx in range(-2, 3):
-                for dy in range(-2, 3):
-                    next_pos = (current[0] + dx, current[1] + dy)
-                    # Check if next_pos is within the boundaries of the maze and not a wall
-                    if 0 <= next_pos[0] < width and 0 <= next_pos[1] < height and not walls[next_pos[0]][next_pos[1]]:
-                        if gameState.hasWall(next_pos[0], next_pos[1]):
-                            continue
-
-                        if next_pos not in explored:
-                            frontier.push((next_pos, path + [next_pos]), len(path) + 1)
-
-            explored.add(current)
-
-        # End position is not reachable
-        return False
-
-    def evaluationFunction(self, currentGameState: GameState, action: str, agentIndex=0, alpha=float('-inf'),
-                           beta=float('inf')) -> float:
-        """
-        Evaluate the current game state based on various factors and return a score.
-        Higher scores indicate better states.
-
-        Args:
-        - currentGameState: The current state of the game.
-        - action: The action to evaluate.
-        - agentIndex: The index of the agent (0 for player 1, 1 for player 2).
-        - alpha: The alpha value for alpha-beta pruning (default is negative infinity).
-        - beta: The beta value for alpha-beta pruning (default is positive infinity).
-
-        Returns:
-        - The score of the evaluated state.
-        """
-
+    def evaluationFunction(self, currentGameState: GameState, action: str, agentIndex=0) -> float:
         successorGameState = currentGameState.generateSuccessor(agentIndex, action)
-
         new_agent_pos = successorGameState.getPacmanPosition(agentIndex)
-
         old_food = currentGameState.getFood()
         new_food = successorGameState.getFood()
-
         num_food_collected = len(old_food.asList()) - len(new_food.asList())
-
-        range_to_search = 55 # Search range covers the entire map
-
-        # Calculate the number of nearby food pellets
-        nearby_food = [(x, y) for x in
-                       range(new_agent_pos[0] - range_to_search, new_agent_pos[0] + range_to_search + 1)
-                       for y in
-                       range(new_agent_pos[1] - range_to_search, new_agent_pos[1] + range_to_search + 1)
-                       if 0 <= x < new_food.width and 0 <= y < new_food.height and new_food[x][y]]
-
-        # Calculate the number of nearby capsules
-        nearby_capsules = [(x, y) for x in
-                           range(new_agent_pos[0] - range_to_search, new_agent_pos[0] + range_to_search + 1)
-                           for y in
-                           range(new_agent_pos[1] - range_to_search, new_agent_pos[1] + range_to_search + 1)
-                           if 0 <= x < new_food.width and 0 <= y < new_food.height and (x, y) in currentGameState.getCapsules()]
+        final_food_bonus = 1000 if len(new_food.asList()) == 1 else 10
+        remaining_capsules = len(successorGameState.getCapsules())
 
         # Calculate the distance to the nearest food pellet
-        closest_food_distance = min(util.manhattanDistance(new_agent_pos, food) for food in nearby_food) if nearby_food else float(
-            'inf')
+        food_positions = new_food.asList()
+        closest_food_distance = min(util.manhattanDistance(new_agent_pos, food) for food in food_positions) if food_positions else float('inf')
 
-        # Calculate the distance to the nearest capsule
-        closest_capsule_distance = min(util.manhattanDistance(new_agent_pos, capsule) for capsule in nearby_capsules) if nearby_capsules else float(
-            'inf')
+        score = (successorGameState.getScore(agentIndex) +
+                 num_food_collected * 10 -
+                 closest_food_distance +
+                 final_food_bonus -
+                 remaining_capsules * 100 -
+                 len(new_food.asList()) * 50)
 
-        final_food_bonus = 20 if len(new_food.asList()) <= 1 else 10
-
-        remaining_capsules = len(successorGameState.getCapsules())
-        score = (
-                successorGameState.getScore(agentIndex) +
-                num_food_collected -
-                remaining_capsules * 100 -
-                closest_food_distance +
-                final_food_bonus -
-                len(new_food.asList()) * 50
-        )
-
-        # Prioritize going towards capsules
-        score -= closest_capsule_distance * 10 if closest_capsule_distance != float('inf') else 0
-
-        # Penalize actions that lead to positions with walls
-        if currentGameState.hasWall(new_agent_pos[0], new_agent_pos[1]):
-            score -= 1000  # Penalize heavily for hitting a wall
-
-        # Alpha-beta pruning
-        if agentIndex == 0:
-            # Maximizer
-            if score >= beta:
-                return score
-            alpha = max(alpha, score)
-        else:
-            # Minimizer
-            if score <= alpha:
-                return score
-            beta = min(beta, score)
+        # Add debug print to observe scoring decision
+        if len(new_food.asList()) <= 1:
+            print(f"Action: {action}, Score: {score}, Remaining Food: {len(new_food.asList())}, Closest Food Distance: {closest_food_distance}")
 
         return score
 
+    def isAccessible(self, start, end, gameState):
+        """Check if the end position is accessible from the start position using A* algorithm."""
+        frontier = [(0, start, [])]  # (priority, current position, path)
+        explored = set()
+        while frontier:
+            _, current, path = heappop(frontier)
+            if current == end:
+                return True
+            if current in explored:
+                continue
+            explored.add(current)
+            for dx in [-1, 0, 1]:
+                for dy in [-1, 0, 1]:
+                    next_pos = (current[0] + dx, current[1] + dy)
+                    if not gameState.hasWall(next_pos[0], next_pos[1]) and next_pos not in explored:
+                        heappush(frontier, (len(path) + 1, next_pos, path + [next_pos]))
+        return False
 
 
 
