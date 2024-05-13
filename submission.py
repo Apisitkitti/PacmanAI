@@ -598,32 +598,41 @@ class YourTeamAgent(Agent):
         return False
 
     def closestAccessibleFoodDistance(self, start, food_positions, gameState, distance_matrix):
-        """Find the distance to the closest accessible food pellet using the A* search algorithm.
-        Utilizes a precomputed distance matrix to handle complex layouts with walls effectively."""
-
+        """Find the distance to the closest accessible food pellet using A* search algorithm with jumps."""
+    
+        # Define the heuristic function (Manhattan distance)
         def heuristic(pos, goal):
-            # Use precomputed distances as the heuristic
-            return distance_matrix[pos[0] + pos[1] * gameState.data.layout.width][goal[0] + goal[1] * gameState.data.layout.width]
+            return util.manhattanDistance(pos, goal)
 
-        frontier = [(0, start, [])]  # (priority, current position, path)
+        frontier = util.PriorityQueue()
+        frontier.push((start, []), 0)  # Start state with path cost 0
         explored = set()
-        layout_width = gameState.data.layout.width
-        layout_height = gameState.data.layout.height
-        while frontier:
-            _, current, path = heappop(frontier)
+
+        while not frontier.isEmpty():
+            current, path = frontier.pop()
+
             if current in food_positions:
                 return len(path)  # Return the distance to the closest food pellet
+
             if current in explored:
                 continue
-            explored.add(current)
-            for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
-                next_pos = (current[0] + dx, current[1] + dy)
-                if (0 <= next_pos[0] < layout_width and 0 <= next_pos[1] < layout_height
-                        and not gameState.hasWall(next_pos[0], next_pos[1]) and next_pos not in explored):
-                    new_cost = len(path) + 1 + heuristic(next_pos, food_positions[0])
-                    heappush(frontier, (new_cost, next_pos, path + [next_pos]))
-        return float('inf')  # No accessible food pellet found
 
+            explored.add(current)
+
+            # Explore neighboring states
+            for action in [Directions.NORTH, Directions.SOUTH, Directions.WEST, Directions.EAST]:
+                dx, dy = Actions.directionToVector(action)
+                next_pos = (int(current[0] + dx), int(current[1] + dy))
+
+                # Perform jumps to handle obstacles
+                while not gameState.hasWall(*next_pos):
+                    new_cost = len(path) + 1  # Cost of reaching next state
+                    if next_pos in food_positions:
+                        return len(path) + 1  # Return the distance if food found
+                    frontier.push((next_pos, path + [next_pos]), new_cost + heuristic(next_pos, food_positions[0]))
+                    next_pos = (int(next_pos[0] + dx), int(next_pos[1] + dy))
+
+        return float('inf')  # No accessible food pellet found
 
 
 
