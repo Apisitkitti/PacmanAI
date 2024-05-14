@@ -435,7 +435,7 @@ def setArgs():
   # Choose a layout
   #layout1 = "open310"
   layout1 = "mediumClassic"
-  #layout1 = "testClassic"
+  #layout1 = "testmap"
   args['layout'] = layout.getLayout(layout1 )
   zoom = 1.0
   # ความเร็วในการเคลื่อนที่ของ pacman สามารถกำหนดได้ โดยค่ามากขึ้น จะช้าลง
@@ -448,7 +448,7 @@ def setArgs():
   # yellow pacman
   # pacmanType = loadAgent("MinimaxAgent", noKeyboard)
   
-  pacmanType = loadAgent("YourTeamAgent2", noKeyboard)
+  pacmanType = loadAgent("ReflexAgent", noKeyboard)
   
   # สามารถแก้เป็น agent ของทีมตัวเองได้
   #pacmanType = loadAgent("YourTeamAgent", False)

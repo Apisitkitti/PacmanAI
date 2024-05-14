@@ -17,6 +17,7 @@ from typing import List, Tuple, Deque
 from collections import deque
 from heapq import heappush, heappop
 from queue import Queue
+from collections import deque
 
 class ReflexAgent(Agent):
   """
@@ -247,221 +248,7 @@ class MinimaxAgent(MultiAgentSearchAgent):
     oldFood = currentGameState.getFood()
 
     return successorGameState.getScore()
-class YourTeamAgent2(MultiAgentSearchAgent):
-    """
-    Your team agent
-    This class makes Pac-Man find all closest capsules and food in the game state.
-    If there is no food or capsules left, it makes Pac-Man randomly walk.
-    Pac-Man also avoids walls and uses BFS for pathfinding.
-    Additionally, if Pac-Man is scared and within a close distance of the other AI, it avoids the other AI.
-    """
-        
-    def getAction(self, gameState: GameState, agentIndex: int = 0) -> str:
-      """
-      Returns the best action for Pac-Man to take in the given game state.
-
-      Args:
-          gameState: The current game state.
-          agentIndex: The index of the agent (0 for Pac-Man, 1 for the second agent).
-
-      Returns:
-          The optimal action to take in the given game state.
-      """
-      # Get the state of the other agent (enemy AI)
-      enemyAgentIndex = (agentIndex + 1) % gameState.getNumAgents()
-      enemyAI = gameState.getPacmanState(enemyAgentIndex)
-      enemyPosition = gameState.getPacmanPosition(enemyAgentIndex)
-
-      # Get the list of remaining capsules and food in the game state
-      capsules = gameState.getCapsules()
-      foodGrid = gameState.getFood()
-      foodList = foodGrid.asList()
-
-      # Get the legal actions for Pac-Man
-      legalActions = gameState.getLegalActions(agentIndex)
-
-      # Get Pac-Man's current position
-      pacmanPosition = gameState.getPacmanPosition(agentIndex)
-
-      # Calculate the distance to the enemy AI
-      distanceToEnemyAI = manhattanDistance(pacmanPosition, enemyPosition)
-
-      # Get the scared times for our AI and the enemy AI
-      scaredTimes = gameState.getScaredTimes(agentIndex)
-      enemyScaredTimes = gameState.getScaredTimes(enemyAgentIndex)
-
-      # Check if our AI is scared and the enemy AI is not scared
-      if scaredTimes > 0 and distanceToEnemyAI < 4:
-          # If our AI is scared and the distance to the enemy AI is less than 4, avoid the enemy
-          return self.findBestActionToAvoidOtherAI(gameState, agentIndex, pacmanPosition, enemyPosition)
-
-      # Check if there are capsules nearby
-      targetPosition = None  # Initialize targetPosition
-      for capsule in capsules:
-          if manhattanDistance(pacmanPosition, capsule) < 5:
-              # If the distance to a capsule is less than 5, aim for the capsule
-              targetPosition = capsule
-              break
-
-      # If no capsules are nearby, find the closest target (either a food or a capsule)
-      if targetPosition is None:
-          if hasattr(self, 'targetPosition'):
-              targetPosition = self.targetPosition
-          else:
-              targetPosition = self.findClosestTarget(gameState, agentIndex, pacmanPosition)
-              self.targetPosition = targetPosition
-
-      # If no target is found, return a random legal action
-      if targetPosition is None:
-          return random.choice(legalActions)
-
-      # Find the best action to navigate towards the target
-      bestAction = self.findBestActionToTarget(gameState, agentIndex, pacmanPosition, targetPosition)
-
-      # If the best action leads to the target, keep the target unchanged
-      if bestAction != Directions.STOP and self.getSuccessorPosition(pacmanPosition, bestAction) == targetPosition:
-          return bestAction
-
-      # Otherwise, recalculate the target and path
-      targetPosition = self.findClosestTarget(gameState, agentIndex, pacmanPosition)
-      self.targetPosition = targetPosition  # Remember the new target
-      bestAction = self.findBestActionToTarget(gameState, agentIndex, pacmanPosition, targetPosition)
-
-      return bestAction if bestAction != Directions.STOP else random.choice(legalActions)
-
-    
-    def findBestActionToAvoidOtherAI(self, gameState: GameState, agentIndex: int, currentPosition: Tuple[int, int], otherAIPosition: Tuple[int, int]) -> str:
-        """
-        Find the best action for Pac-Man to avoid the other AI.
-
-        Args:
-            gameState: The current game state.
-            agentIndex: The index of the agent (0 for Pac-Man, 1 for the second agent).
-            currentPosition: The current position of the agent.
-            otherAIPosition: The position of the other AI to avoid.
-
-        Returns:
-            The best action to avoid the other AI.
-        """
-        # Get the legal actions for Pac-Man
-        legalActions = gameState.getLegalActions(agentIndex)
-
-        # Calculate the distances to each neighboring position
-        distances = {}
-        for action in legalActions:
-            successorPosition = self.getSuccessorPosition(currentPosition, action)
-            distances[action] = manhattanDistance(successorPosition, otherAIPosition)
-
-        # Sort the actions by distance to the other AI in ascending order
-        sortedActions = sorted(distances, key=distances.get)
-
-        # Choose the action that maximizes the distance to the other AI
-        bestAction = sortedActions[-1]
-
-        return bestAction
-
-    def getSuccessorPosition(self, currentPosition: Tuple[int, int], action: str) -> Tuple[int, int]:
-        """
-        Get the successor position after taking a given action from the current position.
-
-        Args:
-            currentPosition: The current position.
-            action: The action to take.
-
-        Returns:
-            The successor position after taking the action.
-        """
-        dx, dy = Actions.directionToVector(action)
-        x, y = currentPosition
-        nextx, nexty = int(x + dx), int(y + dy)
-        return nextx, nexty
-
-    def findClosestTarget(self, gameState: GameState, agentIndex: int, currentPosition: Tuple[int, int]) -> Tuple[int, int]:
-      """
-      Find the closest target (either a food or a capsule) to the agent's current position.
-
-      Args:
-          gameState: The current game state.
-          agentIndex: The index of the agent (0 for Pac-Man, 1 for the second agent).
-          currentPosition: The current position of the agent.
-
-      Returns:
-          The position of the closest target (food or capsule).
-      """
-      # Get the positions of all the food dots and capsules
-      foodPositions = gameState.getFood().asList()
-      capsulePositions = gameState.getCapsules()
-
-      # Combine food and capsule positions into one list
-      targetPositions = foodPositions + capsulePositions
-
-      # Check if there are any targets available
-      if not targetPositions:
-          # If no targets are available, return None
-          return None
-
-      # Calculate the distances from the current position to each target
-      distances = {target: manhattanDistance(currentPosition, target) for target in targetPositions}
-
-      # Find the closest target
-      closestTarget = min(distances, key=distances.get)
-
-      return closestTarget
-
-    def findBestActionToTarget(self, gameState: GameState, agentIndex: int, startPosition: Tuple[int, int], targetPosition: Tuple[int, int]) -> str:
-        """
-        Uses BFS to find the best action to navigate from startPosition to targetPosition, avoiding walls.
-
-        Args:
-            gameState: The current game state.
-            agentIndex: The index of the agent (0 for Pac-Man, 1 for the second agent).
-            startPosition: The starting position of the agent.
-            targetPosition: The target position to navigate towards.
-
-        Returns:
-            The best action to take to navigate from startPosition to targetPosition.
-        """
-        # Get the walls of the maze
-        walls = gameState.getWalls()
-
-        # Perform BFS to find the shortest path from startPosition to targetPosition
-        queue: Deque[Tuple[Tuple[int, int], List[str]]] = deque([(startPosition, [])])
-        visited = set()
-        visited.add(startPosition)
-
-        # Define the possible directions and their respective actions
-        directions = [
-            ((0, 1), Directions.NORTH),  # North
-            ((0, -1), Directions.SOUTH), # South
-            ((-1, 0), Directions.WEST),  # West
-            ((1, 0), Directions.EAST)   # East
-        ]
-
-        while queue:
-            currentPosition, actions = queue.popleft()
-            
-            # If the current position is the target position, return the first action in the path
-            if currentPosition == targetPosition:
-                return actions[0] if actions else Directions.STOP
-            
-            # Explore the possible directions
-            for (dx, dy), direction in directions:
-                newPosition = (currentPosition[0] + dx, currentPosition[1] + dy)
-                
-                # If the new position is within bounds, not a wall, and not visited
-                if (0 <= newPosition[0] < gameState.data.layout.width and
-                    0 <= newPosition[1] < gameState.data.layout.height and
-                    not walls[newPosition[0]][newPosition[1]] and
-                    newPosition not in visited):
-                    # Mark the new position as visited and enqueue it
-                    visited.add(newPosition)
-                    queue.append((newPosition, actions + [direction]))
-
-        # If there is no path found, return a random legal action as a fallback
-        return random.choice(gameState.getLegalActions(agentIndex))
-
-    def evaluationFunction(self, currentGameState: GameState, agentIndex: int) -> float:
-      pass
+  
 ######################################################################################
 class YourTeamAgent(MultiAgentSearchAgent):
     def __init__(self):
@@ -551,42 +338,47 @@ class YourTeamAgent(MultiAgentSearchAgent):
             score -= 1000  # Penalize heavily for hitting a wall
 
         return score
-
-            
-
+          
     def isAccessible(self, start, end, gameState):
-        """
-        Check if the end position is accessible from the start position using BFS.
+          """
+          Check if the end position is accessible from the start position using BFS.
 
-        Args:
-        - start: The starting position.
-        - end: The ending position to check accessibility to.
-        - gameState: The current state of the game.
+          Args:
+          - start: The starting position.
+          - end: The ending position to check accessibility to.
+          - gameState: The current state of the game.
 
-        Returns:
-        - True if the end position is accessible from the start position, False otherwise.
-        """
-        # Define directions: up, down, left, right
-        directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
-        
-        # Initialize a queue for BFS
-        queue = Queue()
-        queue.put(start)
-        
-        # Initialize a set to keep track of visited positions
-        visited = set()
-        visited.add(start)
-        
-        # Perform BFS until the end position is reached or no more positions to explore
-        while not queue.empty():
-            current_pos = queue.get()
-            
-            # If we reach the
-
-
-
-
-
-
-
+          Returns:
+          - True if the end position is accessible from the start position, False otherwise.
+          """
+          # Define directions: up, down, left, right
+          directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+          
+          # Initialize a queue for BFS
+          queue = deque([(start, [])])
+          
+          # Initialize a set to keep track of visited positions
+          visited = set([start])
+          
+          while queue:
+              current_pos, path = queue.popleft()
+              
+              # Check if current position is the end position
+              if current_pos == end:
+                  return True  # The end is accessible from the start
+              
+              # Explore neighbors in all four directions
+              for direction in directions:
+                  next_pos = (current_pos[0] + direction[0], current_pos[1] + direction[1])
+                  
+                  # Check if the next position is within the bounds of the game grid
+                  if not (0 <= next_pos[0] < gameState.data.layout.width and 0 <= next_pos[1] < gameState.data.layout.height):
+                      continue
+                  
+                  # Check if the next position is a wall or has been visited
+                  if not gameState.hasWall(next_pos[0], next_pos[1]) and next_pos not in visited:
+                      visited.add(next_pos)
+                      queue.append((next_pos, path + [direction]))
+          
+          return False
 
