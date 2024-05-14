@@ -1,3 +1,4 @@
+
 '''
   แก้ code และเพิ่มเติมได้ใน class YourTeamAgent เท่านั้น 
   ตอนส่งไฟล์ ให้แน่ใจว่า YourTeamAgent ไม่มี error และ run ได้
@@ -471,87 +472,124 @@ class YourTeamAgent(MultiAgentSearchAgent):
         legalMoves = gameState.getLegalActions(agentIndex)
         if len(gameState.getFood().asList()) == 1:
             last_food_position = gameState.getFood().asList()[0]
-            # Force the move towards the last piece of food
-            best_move = min(legalMoves, key=lambda x: manhattanDistance(gameState.generateSuccessor(agentIndex, x).getPacmanPosition(agentIndex), last_food_position))
-            print(f"Last food at {last_food_position}, forced move: {best_move}")
-            return best_move
+            # Using A* to move towards the last piece of food
+            path = self.aStarSearch(gameState, last_food_position, agentIndex)
+            if path:
+                return path[0]  # Return the first move in the path
+            else:
+                # Default to a random move if A* finds no path
+                return random.choice(legalMoves)
         else:
-            scores = [self.evaluationFunction(gameState, action, agentIndex) for action in legalMoves]
-            bestScore = max(scores)
-            bestIndices = [index for index in range(len(scores)) if scores[index] == bestScore]
-            chosenIndex = random.choice(bestIndices)  # Pick randomly among the best
-            return legalMoves[chosenIndex]
+            path = self.aStarSearch(gameState, gameState.getFood().asList()[0], agentIndex)
+            if path:
+                return path[0]
+            else:
+                # Evaluate moves if A* cannot be used or no path found
+                scores = [self.evaluationFunction(gameState, action, agentIndex) for action in legalMoves]
+                bestScore = max(scores)
+                bestIndices = [index for index in range(len(scores)) if scores[index] == bestScore]
+                chosenIndex = random.choice(bestIndices)
+                return legalMoves[chosenIndex]
+
+    def aStarSearch(self, gameState, goal, agentIndex=0):
+        """Perform A* search from the current pacman position to the goal."""
+        pacmanPosition = gameState.getPacmanPosition(agentIndex)
+        openList = []
+        heapq.heappush(openList, (0 + self.heuristic(pacmanPosition, goal), pacmanPosition, []))
+        visited = set()
+
+        while openList:
+            currentCost, currentPosition, path = heapq.heappop(openList)
+
+            if currentPosition in visited:
+                continue
+
+            visited.add(currentPosition)
+
+            if currentPosition == goal:
+                return path
+
+            for action in gameState.getLegalActions(agentIndex):
+                successor = gameState.generateSuccessor(agentIndex, action)
+                successorPos = successor.getPacmanPosition(agentIndex)
+                if successorPos not in visited:
+                    cost = currentCost - self.heuristic(currentPosition, goal) + 1 + self.heuristic(successorPos, goal)
+                    heapq.heappush(openList, (cost, successorPos, path + [action]))
+
+        return []  # Return empty path if no path is found
+
+    def heuristic(self, position, goal):
+        """Calculate the Manhattan distance from the current position to the goal."""
+        return abs(position[0] - goal[0]) + abs(position[1] - goal[1])
 
     def evaluationFunction(self, currentGameState: GameState, action: str, agentIndex=0) -> float:
-        """
-        Evaluate the current game state based on various factors and return a score.
-        Higher scores indicate better states.
+          """
+          Evaluate the current game state based on various factors and return a score.
+          Higher scores indicate better states.
 
-        Args:
-        - currentGameState: The current state of the game.
-        - action: The action to evaluate.
-        - agentIndex: The index of the agent (0 for player 1, 1 for player 2).
+          Args:
+          - currentGameState: The current state of the game.
+          - action: The action to evaluate.
+          - agentIndex: The index of the agent (0 for player 1, 1 for player 2).
 
-        Returns:
-        - The score of the evaluated state.
-        """
+          Returns:
+          - The score of the evaluated state.
+          """
 
-        # Increase the search range to explore more distant areas
-        range_to_search = max(currentGameState.data.layout.width, currentGameState.data.layout.height) * 2
+          # Increase the search range to explore more distant areas
+          range_to_search = max(currentGameState.data.layout.width, currentGameState.data.layout.height) * 2
 
-        successorGameState = currentGameState.generateSuccessor(agentIndex, action)
+          successorGameState = currentGameState.generateSuccessor(agentIndex, action)
 
-        new_agent_pos = successorGameState.getPacmanPosition(agentIndex)
+          new_agent_pos = successorGameState.getPacmanPosition(agentIndex)
 
-        old_food = currentGameState.getFood()
-        new_food = successorGameState.getFood()
+          old_food = currentGameState.getFood()
+          new_food = successorGameState.getFood()
 
-        num_food_collected = len(old_food.asList()) - len(new_food.asList())
+          num_food_collected = len(old_food.asList()) - len(new_food.asList())
 
-        # Calculate the number of nearby food pellets with increased search range
-        nearby_food = [(x, y) for x in
-                        range(new_agent_pos[0] - range_to_search, new_agent_pos[0] + range_to_search + 1)
-                        for y in
-                        range(new_agent_pos[1] - range_to_search, new_agent_pos[1] + range_to_search + 1)
-                        if 0 <= x < new_food.width and 0 <= y < new_food.height and new_food[x][y]]
+          # Calculate the number of nearby food pellets with increased search range
+          nearby_food = [(x, y) for x in
+                          range(new_agent_pos[0] - range_to_search, new_agent_pos[0] + range_to_search + 1)
+                          for y in
+                          range(new_agent_pos[1] - range_to_search, new_agent_pos[1] + range_to_search + 1)
+                          if 0 <= x < new_food.width and 0 <= y < new_food.height and new_food[x][y]]
 
-        # Calculate the number of nearby capsules with increased search range
-        nearby_capsules = [(x, y) for x in
-                            range(new_agent_pos[0] - range_to_search, new_agent_pos[0] + range_to_search + 1)
-                            for y in
-                            range(new_agent_pos[1] - range_to_search, new_agent_pos[1] + range_to_search + 1)
-                            if 0 <= x < new_food.width and 0 <= y < new_food.height and (x, y) in currentGameState.getCapsules()]
+          # Calculate the number of nearby capsules with increased search range
+          nearby_capsules = [(x, y) for x in
+                              range(new_agent_pos[0] - range_to_search, new_agent_pos[0] + range_to_search + 1)
+                              for y in
+                              range(new_agent_pos[1] - range_to_search, new_agent_pos[1] + range_to_search + 1)
+                              if 0 <= x < new_food.width and 0 <= y < new_food.height and (x, y) in currentGameState.getCapsules()]
 
-        # Calculate the distance to the nearest food pellet
-        closest_food_distance = min(util.manhattanDistance(new_agent_pos, food) for food in nearby_food) if nearby_food else float(
-            'inf')
+          # Calculate the distance to the nearest food pellet
+          closest_food_distance = min(util.manhattanDistance(new_agent_pos, food) for food in nearby_food) if nearby_food else float(
+              'inf')
 
-        # Calculate the distance to the nearest capsule
-        closest_capsule_distance = min(util.manhattanDistance(new_agent_pos, capsule) for capsule in nearby_capsules) if nearby_capsules else float(
-            'inf')
+          # Calculate the distance to the nearest capsule
+          closest_capsule_distance = min(util.manhattanDistance(new_agent_pos, capsule) for capsule in nearby_capsules) if nearby_capsules else float(
+              'inf')
 
-        final_food_bonus = 20 if len(new_food.asList()) <= 1 else 10
+          final_food_bonus = 20 if len(new_food.asList()) <= 1 else 10
 
-        remaining_capsules = len(successorGameState.getCapsules())
-        score = (
-                successorGameState.getScore(agentIndex) +
-                num_food_collected -
-                remaining_capsules * 100 -
-                closest_food_distance +
-                final_food_bonus -
-                len(new_food.asList()) * 50
-        )
+          remaining_capsules = len(successorGameState.getCapsules())
+          score = (
+                  successorGameState.getScore(agentIndex) +
+                  num_food_collected -
+                  remaining_capsules * 100 -
+                  closest_food_distance +
+                  final_food_bonus -
+                  len(new_food.asList()) * 50
+          )
 
-        # Prioritize going towards capsules
-        score -= closest_capsule_distance * 10 if closest_capsule_distance != float('inf') else 0
+          # Prioritize going towards capsules
+          score -= closest_capsule_distance * 10 if closest_capsule_distance != float('inf') else 0
 
-        # Penalize actions that lead to positions with walls
-        if currentGameState.hasWall(new_agent_pos[0], new_agent_pos[1]):
-            score -= 1000  # Penalize heavily for hitting a wall
+          # Penalize actions that lead to positions with walls
+          if currentGameState.hasWall(new_agent_pos[0], new_agent_pos[1]):
+              score -= 1000  # Penalize heavily for hitting a wall
 
-        return score
-
-            
+          return score
 
     def isAccessible(self, start, end, gameState):
         """
@@ -579,10 +617,6 @@ class YourTeamAgent(MultiAgentSearchAgent):
         # Perform BFS until the end position is reached or no more positions to explore
         while not queue.empty():
             current_pos = queue.get()
-            
-            # If we reach the
-
-
 
 
 
